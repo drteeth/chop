@@ -52,30 +52,46 @@ func chop(target int, list []int) int {
 
 	// more than 1 items
 	half := len(list) / 2
-	top := make(chan int)
-	bottom := make(chan int)
+	top := NewChunk(list[0:half])
+	bottom := NewChunk(list[half:])
+	done := make(chan bool)
 
-	go func() {
-		top <- chop(target, list[0:half])
-	}()
-
-	go func() {
-		bottom <- chop(target, list[half:])
-	}()
-
-	// wait for both goroutines
-	t := <-top
-	b := <-bottom
-
-	if t > -1 {
-		return t
+	// it chops the chunks or it gets the hose...
+	chopping := func(chunk *Chunk, done chan bool) {
+		chunk.result = chop(target, chunk.list)
+		done <- true
 	}
 
-	if b > -1 {
-		return b + half
+	go chopping(top, done)
+	go chopping(bottom, done)
+
+	// wait for both goroutines
+	<-done
+	<-done
+
+	if top.hasValue() {
+		return top.result
+	}
+
+	if bottom.hasValue() {
+		return bottom.result + half
 	}
 
 	return -1
+}
+
+// just for fun... Chunks!
+type Chunk struct {
+	list   []int
+	result int
+}
+
+func NewChunk(list []int) *Chunk {
+	return &Chunk{list, -1}
+}
+
+func (c *Chunk) hasValue() bool {
+	return c.result > -1
 }
 
 func assertEqual(expected, actual int) {
